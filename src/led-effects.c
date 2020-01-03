@@ -11,6 +11,10 @@
 static led_descriptor_t *led_descriptors = NULL;
 static uint8_t led_count = 0;
 
+const uint32_t timer_frequency = 5000;
+const uint32_t duty_min = 0;
+const uint32_t duty_max = 256;
+
 esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
 {
     ESP_LOGI(LOG_TAG, "%s", __FUNCTION__);
@@ -25,8 +29,8 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
 
     //
     ledc_timer_config_t timer_config = {
-        .duty_resolution = LEDC_TIMER_13_BIT,
-        .freq_hz = 5000,
+        .duty_resolution = LEDC_TIMER_8_BIT,
+        .freq_hz = timer_frequency,
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .timer_num = LEDC_TIMER_0,
         .clk_cfg = LEDC_AUTO_CLK};
@@ -58,10 +62,16 @@ esp_err_t led_effects_set(uint8_t led, led_effect_t effect, int duration)
     switch (effect)
     {
     case LED_EFFECT_DISABLED:
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, led, duty_max);
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, led);
         break;
     case LED_EFFECT_ON:
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, led, duty_min);
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, led);
         break;
     case LED_EFFECT_BLINK:
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, led, duty_max / 2);
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, led);
         break;
     default:
         break;
@@ -72,7 +82,6 @@ esp_err_t led_effects_set(uint8_t led, led_effect_t effect, int duration)
 
 esp_err_t led_effects_reset(uint8_t led)
 {
-    led_descriptors[led].effect = LED_EFFECT_DISABLED;
 
     return ESP_OK;
 }
