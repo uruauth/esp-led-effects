@@ -17,7 +17,26 @@ const uint32_t duty_max = 256;
 
 esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
 {
-    ESP_LOGI(LOG_TAG, "%s", __FUNCTION__);
+    ESP_LOGD(LOG_TAG, "%s", __FUNCTION__);
+
+    ESP_LOGD(LOG_TAG, "Configuring GPIO");
+
+    gpio_config_t io_conf = {
+        .pin_bit_mask = 0,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_PIN_INTR_DISABLE,
+    };
+
+    for (uint8_t i = 0; i < count; i++)
+    {
+        io_conf.pin_bit_mask |= 1ULL << leds[i].gpio;
+    }
+
+    gpio_config(&io_conf);
+
+    //
 
     led_descriptors = leds;
     led_count = count;
