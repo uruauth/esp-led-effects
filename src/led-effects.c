@@ -68,8 +68,6 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
 {
     ESP_LOGD(LOG_TAG, "%s", __FUNCTION__);
 
-    ESP_LOGD(LOG_TAG, "Configuring GPIO");
-
     gpio_config_t io_conf = {
         .pin_bit_mask = 0,
         .mode = GPIO_MODE_OUTPUT,
@@ -78,7 +76,7 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
 
     for (uint8_t i = 0; i < count; i++)
     {
-        io_conf.pin_bit_mask |= 1ULL << leds[i].gpio;
+        io_conf.pin_bit_mask |= BIT(leds[i].gpio);
 
         io_conf.pull_up_en = leds[i].conn == LED_CONN_CONTROL_ANODE ? 1 : 0;
         io_conf.pull_down_en = leds[i].conn == LED_CONN_CONTROL_CATHODE ? 1 : 0;
@@ -87,10 +85,8 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
     gpio_config(&io_conf);
 
     //
-
     led_descriptors = leds;
     led_count = count;
-
     for (uint8_t i = 0; i < count; i++)
     {
         led_effects_reset(i);
@@ -139,13 +135,14 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
     return ESP_OK;
 }
 
-esp_err_t led_effects_set(uint8_t led, led_effect_t effect, int duration)
+esp_err_t led_effects_set(uint8_t led, led_effect_t effect, int duration, int repeat)
 {
     ESP_LOGI(LOG_TAG, "Setting LED %d to effect %d", led, effect);
 
     led_descriptors[led].effect = effect;
     led_descriptors[led].frame = 0;
     led_descriptors[led].stage = 0;
+    led_descriptors[led].repeat = repeat;
 
     if (effect == LED_EFFECT_DISABLED)
     {
