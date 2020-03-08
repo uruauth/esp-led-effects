@@ -24,7 +24,7 @@ typedef enum
 #pragma pack(1)
 typedef struct
 {
-    int gpio;
+    uint8_t gpio;
     led_connection_t conn;
     led_effect_t effect;
     uint8_t stage;

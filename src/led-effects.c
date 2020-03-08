@@ -18,6 +18,14 @@ const uint32_t duty_max = 256;
 
 TimerHandle_t xTimer;
 
+/**
+ * @brief
+ *
+ * @param effect
+ * @param stage
+ * @param frame
+ * @return uint8_t
+ */
 uint8_t led_frame_brightness(led_effect_t effect, uint8_t stage, uint8_t frame)
 {
     switch (effect)
@@ -40,6 +48,11 @@ uint8_t led_frame_brightness(led_effect_t effect, uint8_t stage, uint8_t frame)
     return 0;
 }
 
+/**
+ * @brief
+ *
+ * @param pxTimer
+ */
 void led_effects_timer_callback(TimerHandle_t pxTimer)
 {
     for (uint8_t i = 0; i < led_count; i++)
@@ -64,6 +77,13 @@ void led_effects_timer_callback(TimerHandle_t pxTimer)
     }
 }
 
+/**
+ * @brief
+ *
+ * @param leds
+ * @param count
+ * @return esp_err_t
+ */
 esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
 {
     ESP_LOGD(LOG_TAG, "%s", __FUNCTION__);
@@ -74,9 +94,11 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
         .intr_type = GPIO_PIN_INTR_DISABLE,
     };
 
+    //
     for (uint8_t i = 0; i < count; i++)
     {
-        io_conf.pin_bit_mask |= BIT(leds[i].gpio);
+        ESP_LOGD(LOG_TAG, "LED %d GPIO %d", i, leds[i].gpio);
+        io_conf.pin_bit_mask = io_conf.pin_bit_mask | BIT64(leds[i].gpio);
 
         io_conf.pull_up_en = leds[i].conn == LED_CONN_CONTROL_ANODE ? 1 : 0;
         io_conf.pull_down_en = leds[i].conn == LED_CONN_CONTROL_CATHODE ? 1 : 0;
@@ -92,7 +114,7 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
         led_effects_reset(i);
     }
 
-    //
+    // Configure LED effects timer
     ledc_timer_config_t timer_config = {
         .duty_resolution = LEDC_TIMER_8_BIT,
         .freq_hz = timer_frequency,
@@ -102,6 +124,7 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
 
     ledc_timer_config(&timer_config);
 
+    // Configure LED effects channels
     for (uint8_t i = 0; i < count; i++)
     {
         ledc_channel_config_t channel_config = {
@@ -124,11 +147,13 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
 
     if (xTimer == NULL)
     {
+        ESP_LOGE(LOG_TAG, "Could not create timer");
         return ESP_FAIL;
     }
 
     if (xTimerStart(xTimer, 0) != pdPASS)
     {
+        ESP_LOGE(LOG_TAG, "Could not start timer");
         return ESP_FAIL;
     }
 
@@ -155,6 +180,13 @@ esp_err_t led_effects_set(uint8_t led, led_effect_t effect, int duration, int re
 
 esp_err_t led_effects_reset(uint8_t led)
 {
+    led_descriptors[led].effect = LED_EFFECT_DISABLED;
+    led_descriptors[led].frame = 0;
+    led_descriptors[led].stage = 0;
+    led_descriptors[led].repeat = 0;
+
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, led, duty_max);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, led);
 
     return ESP_OK;
 }
