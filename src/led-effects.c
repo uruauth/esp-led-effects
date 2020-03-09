@@ -33,19 +33,18 @@ static uint16_t led_frame_brightness(led_effect_t effect, uint8_t stage, uint8_t
     case LED_EFFECT_OFF:
         return 0;
     case LED_EFFECT_ON:
-        return 255;
+        return duty_max;
     case LED_EFFECT_BLINK:
-        return frame < 12 ? 0 : 255;
+        return frame < 12 ? duty_min : duty_max;
     case LED_EFFECT_UP:
-        return frame * 10;
+        return duty_min + frame * 10;
     case LED_EFFECT_DOWN:
-        return 256 - frame * 10;
+        return duty_max - frame * 10;
     case LED_EFFECT_BREATH:
-        return (stage % 2) ? frame * 10 : 256 - frame * 10;
+        return (stage % 2) ? duty_min + frame * 10 : duty_max - frame * 10;
     default:
         return 0;
     }
-    return 0;
 }
 
 /**
@@ -58,6 +57,7 @@ void led_effects_timer_callback(TimerHandle_t pxTimer)
     for (uint8_t i = 0; i < led_count; i++)
     {
         led_descriptor_t *led = &led_descriptors[i];
+
         if (led->effect == LED_EFFECT_DISABLED)
         {
             continue;
@@ -73,7 +73,7 @@ void led_effects_timer_callback(TimerHandle_t pxTimer)
 
         uint16_t brightness = (led_frame_brightness(led->effect, led->stage, led->frame) * led->brightness) / 100;
 
-        ledc_set_duty(LEDC_LOW_SPEED_MODE, i, 256 - (uint8_t)brightness);
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, i, duty_max - (uint8_t)brightness);
         ledc_update_duty(LEDC_LOW_SPEED_MODE, i);
     }
 }
@@ -192,6 +192,7 @@ esp_err_t led_effects_reset(uint8_t led)
     led_descriptors[led].frame = 0;
     led_descriptors[led].stage = 0;
     led_descriptors[led].repeat = 0;
+    led_descriptors[led].brightness = 50;
 
     ledc_set_duty(LEDC_LOW_SPEED_MODE, led, duty_max);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, led);
