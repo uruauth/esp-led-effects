@@ -26,7 +26,7 @@ TimerHandle_t xTimer;
  * @param frame
  * @return uint8_t
  */
-uint8_t led_frame_brightness(led_effect_t effect, uint8_t stage, uint8_t frame)
+static uint16_t led_frame_brightness(led_effect_t effect, uint8_t stage, uint8_t frame)
 {
     switch (effect)
     {
@@ -71,8 +71,9 @@ void led_effects_timer_callback(TimerHandle_t pxTimer)
             led->stage += 1;
         }
 
-        uint8_t brightness = led_frame_brightness(led->effect, led->stage, led->frame);
-        ledc_set_duty(LEDC_LOW_SPEED_MODE, i, 256 - brightness);
+        uint16_t brightness = (led_frame_brightness(led->effect, led->stage, led->frame) * led->brightness) / 100;
+
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, i, 256 - (uint8_t)brightness);
         ledc_update_duty(LEDC_LOW_SPEED_MODE, i);
     }
 }
@@ -174,6 +175,13 @@ esp_err_t led_effects_set(uint8_t led, led_effect_t effect, int duration, int re
         ledc_set_duty(LEDC_LOW_SPEED_MODE, led, duty_max);
         ledc_update_duty(LEDC_LOW_SPEED_MODE, led);
     }
+
+    return ESP_OK;
+}
+
+esp_err_t led_effects_brightness(uint8_t led, uint8_t brightness)
+{
+    led_descriptors[led].brightness = brightness;
 
     return ESP_OK;
 }
