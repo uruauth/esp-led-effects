@@ -12,11 +12,22 @@
 static led_descriptor_t *led_descriptors = NULL;
 static uint8_t led_count = 0;
 
-const uint32_t timer_frequency = 5000;
-const uint32_t duty_min = 0;
-const uint32_t duty_max = 256;
+static const uint32_t timer_frequency = 5000;
+static const uint32_t duty_min = 0;
+static const uint32_t duty_max = 256;
+static const uint8_t fps = 25;
 
-TimerHandle_t xTimer;
+static TimerHandle_t xTimer;
+
+static const uint8_t stages[] = {
+    0, // LED_EFFECT_DISABLED = 0,
+    0, // LED_EFFECT_OFF,
+    0, // LED_EFFECT_ON,
+    2, // LED_EFFECT_BLINK,
+    1, // LED_EFFECT_UP,
+    1, // LED_EFFECT_DOWN,
+    2, // LED_EFFECT_BREATH,
+};
 
 /**
  * @brief
@@ -35,13 +46,13 @@ static uint16_t led_frame_brightness(led_effect_t effect, uint8_t stage, uint8_t
     case LED_EFFECT_ON:
         return duty_max;
     case LED_EFFECT_BLINK:
-        return frame < 12 ? duty_min : duty_max;
+        return frame < (fps / 2) ? duty_min : duty_max;
     case LED_EFFECT_UP:
-        return duty_min + frame * 10;
+        return duty_min + frame * (duty_max - duty_min) / fps;
     case LED_EFFECT_DOWN:
-        return duty_max - frame * 10;
+        return duty_max - frame * (duty_max - duty_min) / fps;
     case LED_EFFECT_BREATH:
-        return (stage % 2) ? duty_min + frame * 10 : duty_max - frame * 10;
+        return (stage % 2) ? duty_min + frame * (duty_max - duty_min) / fps : duty_max - frame * (duty_max - duty_min) / fps;
     default:
         return 0;
     }
@@ -58,17 +69,36 @@ void led_effects_timer_callback(TimerHandle_t pxTimer)
     {
         led_descriptor_t *led = &led_descriptors[i];
 
+        // skip disabled timers
         if (led->effect == LED_EFFECT_DISABLED)
         {
             continue;
         }
 
+        // next frame
         led->frame += 1;
 
-        if (led->frame > 25)
+        if (led->frame >= fps)
         {
             led->frame = 0;
             led->stage += 1;
+
+            if (led->stage > stages[led->effect])
+            {
+                led->stage = 0;
+
+                // if we have number of repeats defined
+                if (led->repeat > 0)
+                {
+                    led->repeat -= 1;
+
+                    if (led->repeat == 0)
+                    {
+                        led_effects_reset(i);
+                        continue;
+                    }
+                }
+            }
         }
 
         uint16_t brightness = (led_frame_brightness(led->effect, led->stage, led->frame) * led->brightness) / 100;
@@ -89,13 +119,13 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
 {
     ESP_LOGD(LOG_TAG, "%s", __FUNCTION__);
 
+    // configure GPIO for LEDs
     gpio_config_t io_conf = {
         .pin_bit_mask = 0,
         .mode = GPIO_MODE_OUTPUT,
         .intr_type = GPIO_PIN_INTR_DISABLE,
     };
 
-    //
     for (uint8_t i = 0; i < count; i++)
     {
         ESP_LOGD(LOG_TAG, "LED %d GPIO %d", i, leds[i].gpio);
@@ -107,7 +137,7 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
 
     gpio_config(&io_conf);
 
-    //
+    // reset all the effect
     led_descriptors = leds;
     led_count = count;
     for (uint8_t i = 0; i < count; i++)
@@ -139,11 +169,12 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
         ledc_channel_config(&channel_config);
     }
 
-    xTimer = xTimerCreate("LED_EFFECTS_TIMER",       // Just a text name, not used by the kernel.
-                          40 / portTICK_PERIOD_MS,   // The timer period in ticks.
-                          pdTRUE,                    // The timers will auto-reload themselves when they expire.
-                          NULL,                      // Assign each timer a unique id equal to its array index.
-                          led_effects_timer_callback // Each timer calls the same callback when it expires.
+    // create effects timer
+    xTimer = xTimerCreate("LED_EFFECTS_TIMER",               // Just a text name, not used by the kernel.
+                          (1000 / fps) / portTICK_PERIOD_MS, // The timer period in ticks.
+                          pdTRUE,                            // The timers will auto-reload themselves when they expire.
+                          NULL,                              // Assign each timer a unique id equal to its array index.
+                          led_effects_timer_callback         // Each timer calls the same callback when it expires.
     );
 
     if (xTimer == NULL)
