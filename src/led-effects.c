@@ -112,16 +112,20 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
     led_count = count;
     for (uint8_t i = 0; i < count; i++)
     {
-        led_effects_reset(i);
+        led_descriptors[i].effect = LED_EFFECT_DISABLED;
+        led_descriptors[i].frame = 0;
+        led_descriptors[i].stage = 0;
+        led_descriptors[i].repeat = 0;
     }
 
     // Configure LED effects timer
     ledc_timer_config_t timer_config = {
-        .duty_resolution = LEDC_TIMER_8_BIT,
-        .freq_hz = timer_frequency,
         .speed_mode = LEDC_LOW_SPEED_MODE,
+        .duty_resolution = LEDC_TIMER_8_BIT,
         .timer_num = LEDC_TIMER_0,
-        .clk_cfg = LEDC_AUTO_CLK};
+        .freq_hz = timer_frequency,
+        .clk_cfg = LEDC_AUTO_CLK,
+    };
 
     ledc_timer_config(&timer_config);
 
@@ -134,9 +138,13 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
             .gpio_num = led_descriptors[i].gpio,
             .speed_mode = LEDC_LOW_SPEED_MODE,
             .hpoint = 0,
-            .timer_sel = LEDC_TIMER_0};
+            .timer_sel = LEDC_TIMER_0,
+        };
 
         ledc_channel_config(&channel_config);
+
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, i, duty_max);
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, i);
     }
 
     xTimer = xTimerCreate("LED_EFFECTS_TIMER",       // Just a text name, not used by the kernel.
