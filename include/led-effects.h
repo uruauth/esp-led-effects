@@ -30,6 +30,7 @@ typedef struct
     led_effect_t effect;
     uint8_t stage;
     uint8_t frame;
+    int duration;
     int repeat;
 } led_descriptor_t;
 

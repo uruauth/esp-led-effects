@@ -23,10 +23,10 @@ static const uint8_t stages[] = {
     0, // LED_EFFECT_DISABLED = 0,
     0, // LED_EFFECT_OFF,
     0, // LED_EFFECT_ON,
-    2, // LED_EFFECT_BLINK,
-    1, // LED_EFFECT_UP,
-    1, // LED_EFFECT_DOWN,
-    2, // LED_EFFECT_BREATH,
+    1, // LED_EFFECT_BLINK,
+    0, // LED_EFFECT_UP,
+    0, // LED_EFFECT_DOWN,
+    1, // LED_EFFECT_BREATH,
 };
 
 /**
@@ -37,7 +37,7 @@ static const uint8_t stages[] = {
  * @param frame
  * @return uint8_t
  */
-static uint16_t led_frame_brightness(led_effect_t effect, uint8_t stage, uint8_t frame)
+static uint16_t led_frame_brightness(led_effect_t effect, int stage, int frame)
 {
     switch (effect)
     {
@@ -78,7 +78,9 @@ void led_effects_timer_callback(TimerHandle_t pxTimer)
         // next frame
         led->frame += 1;
 
-        if (led->frame >= fps)
+        int scaled_frame = (led->frame * 1000) / led->duration;
+
+        if (scaled_frame >= fps)
         {
             led->frame = 0;
             led->stage += 1;
@@ -101,7 +103,9 @@ void led_effects_timer_callback(TimerHandle_t pxTimer)
             }
         }
 
-        uint16_t brightness = (led_frame_brightness(led->effect, led->stage, led->frame) * led->brightness) / 100;
+        uint16_t brightness = (led_frame_brightness(led->effect, led->stage, scaled_frame) * led->brightness) / 100;
+
+        ESP_LOGD(LOG_TAG, "*** LED %d Brightness %d (%d, %d)", i, brightness, led->stage, scaled_frame);
 
         ledc_set_duty(LEDC_LOW_SPEED_MODE, i, duty_max - (uint8_t)brightness);
         ledc_update_duty(LEDC_LOW_SPEED_MODE, i);
@@ -117,7 +121,7 @@ void led_effects_timer_callback(TimerHandle_t pxTimer)
  */
 esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
 {
-    ESP_LOGD(LOG_TAG, "%s", __FUNCTION__);
+    ESP_LOGI(LOG_TAG, "Init LED Effects");
 
     // configure GPIO for LEDs
     gpio_config_t io_conf = {
@@ -145,6 +149,7 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
         led_descriptors[i].effect = LED_EFFECT_DISABLED;
         led_descriptors[i].frame = 0;
         led_descriptors[i].stage = 0;
+        led_descriptors[i].duration = 0;
         led_descriptors[i].repeat = 0;
     }
 
@@ -202,17 +207,31 @@ esp_err_t led_effects_init(led_descriptor_t *leds, uint8_t count)
 
 esp_err_t led_effects_set(uint8_t led, led_effect_t effect, int duration, int repeat)
 {
-    ESP_LOGI(LOG_TAG, "Setting LED %d to effect %d", led, effect);
-
-    led_descriptors[led].effect = effect;
-    led_descriptors[led].frame = 0;
-    led_descriptors[led].stage = 0;
-    led_descriptors[led].repeat = repeat;
-
     if (effect == LED_EFFECT_DISABLED)
     {
+        ESP_LOGD(LOG_TAG, "Disabling LED %d", led);
+
+        led_descriptors[led].effect = effect;
+        led_descriptors[led].frame = 0;
+        led_descriptors[led].stage = 0;
+        led_descriptors[led].duration = 0;
+        led_descriptors[led].repeat = 0;
+
         ledc_set_duty(LEDC_LOW_SPEED_MODE, led, duty_max);
         ledc_update_duty(LEDC_LOW_SPEED_MODE, led);
+    }
+    else
+    {
+        if (duration == 0)
+            duration = 1000;
+
+        ESP_LOGD(LOG_TAG, "Setting LED %d to effect %d for %d ms and %d repeats", led, effect, duration, repeat);
+
+        led_descriptors[led].effect = effect;
+        led_descriptors[led].frame = 0;
+        led_descriptors[led].stage = 0;
+        led_descriptors[led].duration = duration;
+        led_descriptors[led].repeat = repeat;
     }
 
     return ESP_OK;
@@ -220,6 +239,8 @@ esp_err_t led_effects_set(uint8_t led, led_effect_t effect, int duration, int re
 
 esp_err_t led_effects_brightness(uint8_t led, uint8_t brightness)
 {
+    ESP_LOGD(LOG_TAG, "Setting brightness of LED %d to %d", led, brightness);
+
     led_descriptors[led].brightness = brightness;
 
     return ESP_OK;
@@ -227,11 +248,15 @@ esp_err_t led_effects_brightness(uint8_t led, uint8_t brightness)
 
 esp_err_t led_effects_reset(uint8_t led)
 {
+    ESP_LOGD(LOG_TAG, "Disabling LED %d", led);
+
     led_descriptors[led].effect = LED_EFFECT_DISABLED;
     led_descriptors[led].frame = 0;
     led_descriptors[led].stage = 0;
+    led_descriptors[led].duration = 0;
     led_descriptors[led].repeat = 0;
-    led_descriptors[led].brightness = 50;
+
+    led_descriptors[led].brightness = 20;
 
     ledc_set_duty(LEDC_LOW_SPEED_MODE, led, duty_max);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, led);
