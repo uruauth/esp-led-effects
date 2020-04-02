@@ -105,7 +105,7 @@ void led_effects_timer_callback(TimerHandle_t pxTimer)
 
         uint16_t brightness = (led_frame_brightness(led->effect, led->stage, scaled_frame) * led->brightness) / 100;
 
-        ESP_LOGD(LOG_TAG, "*** LED %d Brightness %d (%d, %d)", i, brightness, led->stage, scaled_frame);
+        // ESP_LOGD(LOG_TAG, "*** LED %d Brightness %d (%d, %d)", i, brightness, led->stage, scaled_frame);
 
         ledc_set_duty(LEDC_LOW_SPEED_MODE, i, duty_max - (uint8_t)brightness);
         ledc_update_duty(LEDC_LOW_SPEED_MODE, i);
